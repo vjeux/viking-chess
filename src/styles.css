@@ -1,0 +1,172 @@
+.App {
+  font-family: sans-serif;
+  text-align: center;
+  display: flex;
+}
+
+:root {
+  --size: 11;
+  --width: 50px;
+}
+
+.board {
+  font-size: 0;
+  width: calc(var(--width) * var(--size));
+  position: relative;
+}
+
+.spot {
+  width: var(--width);
+  height: var(--width);
+  position: relative;
+  display: inline-block;
+}
+
+.piece {
+  width: var(--width);
+  height: var(--width);
+  position: absolute;
+  display: block;
+  background-size: contain;
+  background-position: 50% calc(50% - 2px);
+  pointer-events: none;
+  transition: top 0.3s, left 0.3s;
+  opacity: 1;
+}
+
+.deleted {
+  opacity: 0;
+  transition: opacity 0.2s;
+  transition-delay: 0.3s;
+}
+
+.dark {
+  background-color: #b0c490;
+}
+.darkest {
+  background-color: #779954;
+}
+.row,
+.light {
+  background-color: #e9eecc;
+}
+
+.dark.selected {
+  background-color: #bccc4a;
+}
+.light.selected {
+  background-color: #f4f58a;
+}
+
+.legal-move:after {
+  content: "";
+  width: calc(var(--width) / 3);
+  height: calc(var(--width) / 3);
+  display: block;
+  border-radius: 100%;
+  background-color: rgba(0, 0, 0, 0.1);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+.clickable {
+  cursor: grab;
+}
+.legal-move {
+  cursor: pointer;
+}
+
+.x0 {
+  left: calc(var(--width) * 0);
+}
+.x1 {
+  left: calc(var(--width) * 1);
+}
+.x2 {
+  left: calc(var(--width) * 2);
+}
+.x3 {
+  left: calc(var(--width) * 3);
+}
+.x4 {
+  left: calc(var(--width) * 4);
+}
+.x5 {
+  left: calc(var(--width) * 5);
+}
+.x6 {
+  left: calc(var(--width) * 6);
+}
+.x7 {
+  left: calc(var(--width) * 7);
+}
+.x8 {
+  left: calc(var(--width) * 8);
+}
+.x9 {
+  left: calc(var(--width) * 9);
+}
+.x10 {
+  left: calc(var(--width) * 10);
+}
+
+.y0 {
+  top: calc(var(--width) * 0);
+}
+.y1 {
+  top: calc(var(--width) * 1);
+}
+.y2 {
+  top: calc(var(--width) * 2);
+}
+.y3 {
+  top: calc(var(--width) * 3);
+}
+.y4 {
+  top: calc(var(--width) * 4);
+}
+.y5 {
+  top: calc(var(--width) * 5);
+}
+.y6 {
+  top: calc(var(--width) * 6);
+}
+.y7 {
+  top: calc(var(--width) * 7);
+}
+.y8 {
+  top: calc(var(--width) * 8);
+}
+.y9 {
+  top: calc(var(--width) * 9);
+}
+.y10 {
+  top: calc(var(--width) * 10);
+}
+
+.border-top-right {
+  border-top-right-radius: 25%;
+}
+
+.border-bottom-right {
+  border-bottom-right-radius: 25%;
+}
+
+.border-top-left {
+  border-top-left-radius: 25%;
+}
+
+.border-bottom-left {
+  border-bottom-left-radius: 25%;
+}
+
+.move {
+  text-align: left;
+}
+
+.move.active {
+  background-color: #ccc;
+}
