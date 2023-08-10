@@ -24,6 +24,11 @@ function getPieces(board) {
 }
 
 function addPiece(board, x, y, type) {
+  if (board[x * SIZE + y] !== EMPTY) {
+    throw new Error(
+      "Cannot add piece because there's already a piece at that position!"
+    );
+  }
   board[x * SIZE + y] = type;
   board.pieces.push({
     x,
@@ -38,22 +43,32 @@ function movePiece(board, fromX, fromY, toX, toY) {
   board[toX * SIZE + toY] = board[fromX * SIZE + fromY];
   board[fromX * SIZE + fromY] = EMPTY;
   for (let i = 0; i < board.pieces.length; ++i) {
-    if (board.pieces[i].x === fromX && board.pieces[i].y === fromY) {
+    if (
+      board.pieces[i].x === fromX &&
+      board.pieces[i].y === fromY &&
+      !board.pieces[i].deleted
+    ) {
       board.pieces[i].x = toX;
       board.pieces[i].y = toY;
-      break;
+      return;
     }
   }
+  throw new Error("Cannot move piece because the original doesn't exist!");
 }
 
 function deletePiece(board, x, y) {
   board[x * SIZE + y] = EMPTY;
   for (let i = 0; i < board.pieces.length; ++i) {
-    if (board.pieces[i].x === x && board.pieces[i].y === y) {
+    if (
+      board.pieces[i].x === x &&
+      board.pieces[i].y === y &&
+      !board.pieces[i].deleted
+    ) {
       board.pieces[i].deleted = true;
-      break;
+      return;
     }
   }
+  throw new Error("Cannot delete piece because the original doesn't exist!");
 }
 
 function initializeBoard() {
@@ -130,8 +145,8 @@ const LIGHT = 0;
 const DARK = 1;
 const DARKEST = 2;
 
-function isDark(x, y) {
-  if (
+function isAttackerStartingSquare(x, y) {
+  return (
     // Top attackers
     (x === 3 && y === 0) ||
     (x === 4 && y === 0) ||
@@ -160,11 +175,11 @@ function isDark(x, y) {
     (x === 5 && y === 9) ||
     (x === 6 && y === 10) ||
     (x === 7 && y === 10)
-  ) {
-    return DARK;
-  }
-  if (
-    // Defenders
+  );
+}
+
+function isDefenderStartingSquare(x, y) {
+  return (
     (x === 3 && y === 5) ||
     (x === 4 && y === 4) ||
     (x === 4 && y === 5) ||
@@ -177,10 +192,11 @@ function isDark(x, y) {
     (x === 6 && y === 5) ||
     (x === 6 && y === 6) ||
     (x === 7 && y === 5)
-  ) {
-    return DARK;
-  }
-  if (
+  );
+}
+
+function isSpecialSquare(x, y) {
+  return (
     // King
     (x === 5 && y === 5) ||
     // Exit
@@ -188,7 +204,17 @@ function isDark(x, y) {
     (x === 10 && y === 0) ||
     (x === 0 && y === 10) ||
     (x === 10 && y === 10)
-  ) {
+  );
+}
+
+function getDarkness(x, y) {
+  if (isAttackerStartingSquare(x, y)) {
+    return DARK;
+  }
+  if (isDefenderStartingSquare(x, y)) {
+    return DARK;
+  }
+  if (isSpecialSquare(x, y)) {
     return DARKEST;
   }
 }
@@ -233,42 +259,42 @@ function isValidMove(board, fromX, fromY, toX, toY) {
   );
 }
 
+function check(board, x1, y1, x2, y2, turn) {
+  const attackedPiece = getPiece(board, x1, y1);
+  if (attackedPiece === KING) {
+    return false;
+  }
+  return (
+    isPieceForTurn(attackedPiece, !turn) &&
+    (isSpecialSquare(x2, y2) || isPieceForTurn(getPiece(board, x2, y2), turn))
+  );
+}
+
 function executeMove(board, fromX, fromY, toX, toY) {
   const piece = getPiece(board, fromX, fromY);
   const newBoard = cloneBoard(board);
   movePiece(newBoard, fromX, fromY, toX, toY, EMPTY);
   const turn = isPieceForTurn(piece, true);
 
-  if (
-    toY - 2 >= 0 &&
-    isPieceForTurn(getPiece(board, toX, toY - 1), !turn) &&
-    isPieceForTurn(getPiece(board, toX, toY - 2), turn)
-  ) {
+  const captures = [];
+  if (toY - 2 >= 0 && check(board, toX, toY - 1, toX, toY - 2, turn)) {
     deletePiece(newBoard, toX, toY - 1);
+    captures.push([toX, toY - 1]);
   }
-  if (
-    toY + 2 < SIZE &&
-    isPieceForTurn(getPiece(board, toX, toY + 1), !turn) &&
-    isPieceForTurn(getPiece(board, toX, toY + 2), turn)
-  ) {
+  if (toY + 2 < SIZE && check(board, toX, toY + 1, toX, toY + 2, turn)) {
     deletePiece(newBoard, toX, toY + 1);
+    captures.push([toX, toY + 1]);
   }
-  if (
-    toX - 2 >= 0 &&
-    isPieceForTurn(getPiece(board, toX - 1, toY), !turn) &&
-    isPieceForTurn(getPiece(board, toX - 2, toY), turn)
-  ) {
+  if (toX - 2 >= 0 && check(board, toX - 1, toY, toX - 2, toY, turn)) {
     deletePiece(newBoard, toX - 1, toY);
+    captures.push([toX - 1, toY]);
   }
-  if (
-    toX + 2 < SIZE &&
-    isPieceForTurn(getPiece(board, toX + 1, toY), !turn) &&
-    isPieceForTurn(getPiece(board, toX + 2, toY), turn)
-  ) {
+  if (toX + 2 < SIZE && check(board, toX + 1, toY, toX + 2, toY, turn)) {
     deletePiece(newBoard, toX + 1, toY);
+    captures.push([toX + 1, toY]);
   }
 
-  return newBoard;
+  return [newBoard, captures];
 }
 
 function isPieceForTurn(piece, turn) {
@@ -293,7 +319,7 @@ function DisplayBoard({ gameState, onClick }) {
         <div key={"row-" + y} className="row">
           {range(0, SIZE).map((x) => {
             const piece = getPiece(board, x, y);
-            const darkness = isDark(x, y);
+            const darkness = getDarkness(x, y);
             return (
               <div
                 className={
@@ -321,34 +347,34 @@ function DisplayBoard({ gameState, onClick }) {
                     : "") +
                   (y > 0 &&
                   x < SIZE - 1 &&
-                  isDark(x, y) &&
-                  !isDark(x + 1, y) &&
-                  !isDark(x, y - 1)
+                  getDarkness(x, y) &&
+                  !getDarkness(x + 1, y) &&
+                  !getDarkness(x, y - 1)
                     ? " border-top-right"
                     : "") +
                   (x > 0 &&
                   y > 0 &&
-                  isDark(x, y) &&
-                  !isDark(x - 1, y) &&
-                  !isDark(x, y - 1)
+                  getDarkness(x, y) &&
+                  !getDarkness(x - 1, y) &&
+                  !getDarkness(x, y - 1)
                     ? " border-top-left"
                     : "") +
                   (x < SIZE - 1 &&
                   y < SIZE - 1 &&
-                  isDark(x, y) &&
-                  !isDark(x + 1, y) &&
-                  !isDark(x, y + 1)
+                  getDarkness(x, y) &&
+                  !getDarkness(x + 1, y) &&
+                  !getDarkness(x, y + 1)
                     ? " border-bottom-right"
                     : "") +
                   (x > 0 &&
                   y < SIZE - 1 &&
-                  isDark(x, y) &&
-                  !isDark(x - 1, y) &&
-                  !isDark(x, y + 1)
+                  getDarkness(x, y) &&
+                  !getDarkness(x - 1, y) &&
+                  !getDarkness(x, y + 1)
                     ? " border-bottom-left"
                     : "")
                 }
-                key={"" + x}
+                key={"col-" + x}
                 onClick={() => onClick(x, y)}
               />
             );
@@ -365,7 +391,7 @@ function DisplayBoard({ gameState, onClick }) {
         return (
           <div
             className={className}
-            key={piece.id}
+            key={"piece-" + piece.id}
             style={{
               backgroundImage: "url(" + IMAGES[piece.type] + ")"
             }}
@@ -428,7 +454,7 @@ export default function App() {
                 y
               )
             ) {
-              const nextBoard = executeMove(
+              const [nextBoard, captures] = executeMove(
                 gameState.board,
                 gameState.selected[0],
                 gameState.selected[1],
@@ -444,6 +470,7 @@ export default function App() {
                 lastMove: move,
                 history: gameState.history.concat({
                   move,
+                  captures,
                   board: nextBoard,
                   turn: !gameState.turn
                 })
@@ -522,6 +549,7 @@ export default function App() {
         <ul>
           {gameState.history.map((historyMove, i) => (
             <li
+              key={"move-" + i}
               className={"move" + (historyIndex === i ? " active" : "")}
               onClick={() => {
                 setGameState({
@@ -533,9 +561,20 @@ export default function App() {
                 });
               }}
             >
-              #{i + 1}{" "}
+              <span
+                className={
+                  "move-count" + (i % 2 === 0 ? " attacker" : " defender")
+                }
+              >
+                #{Math.floor((i + 2) / 2)}
+              </span>{" "}
               {positionToString(historyMove.move[0], historyMove.move[1])}-
               {positionToString(historyMove.move[2], historyMove.move[3])}
+              {historyMove.captures.length > 0
+                ? historyMove.captures
+                    .map((capture) => "x" + positionToString(...capture))
+                    .join("")
+                : ""}
             </li>
           ))}
         </ul>
@@ -548,8 +587,9 @@ export default function App() {
             let turn = ATTACKER_TURN;
             for (let i = 0; i < moves.length; i++) {
               const move = moves[i];
-              board = executeMove(board, ...move);
-              history.push({ move, board, turn });
+              let captures;
+              [board, captures] = executeMove(board, ...move);
+              history.push({ move, board, turn, captures });
               turn = !turn;
             }
             setGameState({
