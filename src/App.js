@@ -71,59 +71,6 @@ function deletePiece(board, x, y) {
   throw new Error("Cannot delete piece because the original doesn't exist!");
 }
 
-function initializeBoard() {
-  const board = Array(SIZE * SIZE).fill(EMPTY);
-  board.pieces = [];
-
-  // Top attackers
-  addPiece(board, 3, 0, ATTACKER);
-  addPiece(board, 4, 0, ATTACKER);
-  addPiece(board, 5, 0, ATTACKER);
-  addPiece(board, 5, 1, ATTACKER);
-  addPiece(board, 6, 0, ATTACKER);
-  addPiece(board, 7, 0, ATTACKER);
-
-  // Left attackers
-  addPiece(board, 0, 3, ATTACKER);
-  addPiece(board, 0, 4, ATTACKER);
-  addPiece(board, 0, 5, ATTACKER);
-  addPiece(board, 1, 5, ATTACKER);
-  addPiece(board, 0, 6, ATTACKER);
-  addPiece(board, 0, 7, ATTACKER);
-
-  // Right attackers
-  addPiece(board, 10, 3, ATTACKER);
-  addPiece(board, 10, 4, ATTACKER);
-  addPiece(board, 10, 5, ATTACKER);
-  addPiece(board, 9, 5, ATTACKER);
-  addPiece(board, 10, 6, ATTACKER);
-  addPiece(board, 10, 7, ATTACKER);
-
-  // Bottom attackers
-  addPiece(board, 3, 10, ATTACKER);
-  addPiece(board, 4, 10, ATTACKER);
-  addPiece(board, 5, 10, ATTACKER);
-  addPiece(board, 5, 9, ATTACKER);
-  addPiece(board, 6, 10, ATTACKER);
-  addPiece(board, 7, 10, ATTACKER);
-
-  // Defenders
-  addPiece(board, 3, 5, DEFENDER);
-  addPiece(board, 4, 4, DEFENDER);
-  addPiece(board, 4, 5, DEFENDER);
-  addPiece(board, 4, 6, DEFENDER);
-  addPiece(board, 5, 3, DEFENDER);
-  addPiece(board, 5, 4, DEFENDER);
-  addPiece(board, 5, 5, KING);
-  addPiece(board, 5, 6, DEFENDER);
-  addPiece(board, 5, 7, DEFENDER);
-  addPiece(board, 6, 4, DEFENDER);
-  addPiece(board, 6, 5, DEFENDER);
-  addPiece(board, 6, 6, DEFENDER);
-  addPiece(board, 7, 5, DEFENDER);
-
-  return board;
-}
 function range(start, end) {
   const result = [];
   for (let i = start; i < end; i++) {
@@ -195,16 +142,21 @@ function isDefenderStartingSquare(x, y) {
   );
 }
 
-function isSpecialSquare(x, y) {
+function isKingSquare(x, y) {
+  return x === 5 && y === 5;
+}
+
+function isExitSquare(x, y) {
   return (
-    // King
-    (x === 5 && y === 5) ||
-    // Exit
     (x === 0 && y === 0) ||
     (x === 10 && y === 0) ||
     (x === 0 && y === 10) ||
     (x === 10 && y === 10)
   );
+}
+
+function isSpecialSquare(x, y) {
+  return isKingSquare(x, y) || isExitSquare(x, y);
 }
 
 function getDarkness(x, y) {
@@ -266,7 +218,10 @@ function check(board, x1, y1, x2, y2, turn) {
   }
   return (
     isPieceForTurn(attackedPiece, !turn) &&
-    (isSpecialSquare(x2, y2) || isPieceForTurn(getPiece(board, x2, y2), turn))
+    (isExitSquare(x2, y2) ||
+      isPieceForTurn(getPiece(board, x2, y2), turn) ||
+      (isKingSquare(x2, y2) &&
+        !(turn === ATTACKER_TURN && getPiece(board, x2, y2) === KING)))
   );
 }
 
@@ -297,6 +252,300 @@ function executeMove(board, fromX, fromY, toX, toY) {
   return [newBoard, captures];
 }
 
+const GAME_CONTINUES = 0;
+const ATTACKER_WIN = 1;
+const DEFENDER_WIN = 2;
+const DRAW = 3;
+
+function endStateToString(endState) {
+  if (endState === GAME_CONTINUES) {
+    return "game continues";
+  } else if (endState === ATTACKER_WIN) {
+    return "attacker win";
+  } else if (endState === DEFENDER_WIN) {
+    return "defender win";
+  } else if (endState === DRAW) {
+    return "draw";
+  }
+  return "<unknown end condition>";
+}
+
+function areBoardEqual(boardA, boardB) {
+  return boardA.toString() === boardB.toString();
+}
+
+function isRepetition(history) {
+  let lastHistory = history[history.length - 1];
+  for (let i = history.length - 2; i >= 0; i--) {
+    if (areBoardEqual(history[i].board, lastHistory.board)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const VISITED = -1;
+
+function getKingPosition(board) {
+  for (let x = 0; x < SIZE; ++x) {
+    for (let y = 0; y < SIZE; ++y) {
+      if (getPiece(board, x, y) === KING) {
+        return [x, y];
+      }
+    }
+  }
+}
+
+function isKingCaptured(board) {
+  const [x, y] = getKingPosition(board);
+  return (
+    x > 0 &&
+    x < SIZE - 1 &&
+    y > 0 &&
+    y < SIZE - 1 &&
+    getPiece(board, x - 1, y) === ATTACKER &&
+    getPiece(board, x + 1, y) === ATTACKER &&
+    getPiece(board, x, y - 1) === ATTACKER &&
+    getPiece(board, x, y + 1) === ATTACKER
+  );
+}
+
+function isDefenderSurrounded(board) {
+  const [king_x, king_y] = getKingPosition(board);
+
+  const flooded_board = board.slice();
+
+  const queue = [[king_x, king_y]];
+  const edges = [];
+
+  // Return true if we run into an impossibility
+  function checkAndAdd(x, y) {
+    // If we run into an edge, this means we are not surrounded
+    if (x < 0 || x > SIZE - 1 || y < 0 || y > SIZE - 1) {
+      return true;
+    }
+
+    const piece = flooded_board[x * SIZE + y];
+    if (piece === ATTACKER) {
+      edges.push([x, y]);
+      return false;
+    }
+
+    // We already visited them
+    if (piece === VISITED || piece === KING) {
+      return false;
+    }
+    queue.push([x, y]);
+    flooded_board[x * SIZE + y] = VISITED;
+    return false;
+  }
+
+  // Flood fill
+  while (queue.length > 0) {
+    const position = queue.pop();
+    const [x, y] = position;
+    if (
+      checkAndAdd(x + 1, y) ||
+      checkAndAdd(x - 1, y) ||
+      checkAndAdd(x, y + 1) ||
+      checkAndAdd(x, y - 1)
+    ) {
+      // We ran into an edge, we are not surrounded
+      return false;
+    }
+  }
+
+  function canPositionBeCaptured(x, y) {
+    if (x < 0 || x > SIZE - 1 || y < 0 || y > SIZE - 1) {
+      return false;
+    }
+    if (isSpecialSquare(x, y)) {
+      return true;
+    }
+    const piece = flooded_board[x * SIZE + y];
+    if (piece === VISITED || piece === DEFENDER || piece === KING) {
+      return true;
+    }
+    return false;
+  }
+
+  // If we can capture a piece that forms the edge, we can still make progress
+  // and maybe open the wall
+  for (let i = 0; i < edges.length; ++i) {
+    const [x, y] = edges[i];
+    if (
+      (canPositionBeCaptured(x - 1, y) && canPositionBeCaptured(x + 1, y)) ||
+      (canPositionBeCaptured(x, y - 1) && canPositionBeCaptured(x, y + 1))
+    ) {
+      return false;
+    }
+  }
+
+  // Check that there are no defenders outside of the walls
+  for (let i = 0; i < flooded_board.length; ++i) {
+    if (flooded_board[i] === DEFENDER) {
+      return false;
+    }
+  }
+
+  // We haven't run into any impossibility of being surrounded, so we must be surrounded
+  return true;
+}
+
+function hasKingEscapedFort(board) {
+  const [king_x, king_y] = getKingPosition(board);
+  // King must be on the edge
+  if (
+    !(
+      king_x === 0 ||
+      king_x === SIZE - 1 ||
+      king_y === 0 ||
+      king_y === SIZE - 1
+    )
+  ) {
+    return false;
+  }
+
+  const flooded_board = board.slice();
+
+  const queue = [[king_x, king_y]];
+  const edges = [];
+  let has_seen_an_empty_space = false;
+
+  // Return true if we run into an impossibility
+  function checkAndAdd(x, y) {
+    // If we run into an edge, if it's the king's edge we don't add it to the queue,
+    // if it is not, we reached the outside and we don't have a fort.
+    if (x < 0) {
+      return king_x !== 0;
+    }
+    if (x > SIZE - 1) {
+      return king_x !== SIZE - 1;
+    }
+    if (y < 0) {
+      return king_y !== 0;
+    }
+    if (y > SIZE - 1) {
+      return king_y !== SIZE - 1;
+    }
+
+    const piece = flooded_board[x * SIZE + y];
+    // If we run into an attacker, we don't have a fort
+    if (piece === ATTACKER) {
+      return true;
+    }
+
+    if (piece === DEFENDER) {
+      edges.push([x, y]);
+      return false;
+    }
+    if (piece === EMPTY) {
+      has_seen_an_empty_space = true;
+    }
+
+    // We already visited them
+    if (piece === VISITED || piece === KING) {
+      return false;
+    }
+    queue.push([x, y]);
+    flooded_board[x * SIZE + y] = VISITED;
+    return false;
+  }
+
+  // Flood fill
+  while (queue.length > 0) {
+    const position = queue.pop();
+    const [x, y] = position;
+    if (
+      checkAndAdd(x + 1, y) ||
+      checkAndAdd(x - 1, y) ||
+      checkAndAdd(x, y + 1) ||
+      checkAndAdd(x, y - 1)
+    ) {
+      // We ran into an impossibility of a fort existing, this is not a fort exit
+      return false;
+    }
+  }
+
+  function canPositionBeCaptured(x, y) {
+    if (x < 0 || x > SIZE - 1 || y < 0 || y > SIZE - 1) {
+      return false;
+    }
+    if (isSpecialSquare(x, y)) {
+      return false;
+    }
+    const piece = flooded_board[x * SIZE + y];
+    if (piece === EMPTY || piece === ATTACKER) {
+      return true;
+    }
+    return false;
+  }
+
+  // There must be at least one empty space
+  if (!has_seen_an_empty_space) {
+    return false;
+  }
+
+  for (let i = 0; i < edges.length; ++i) {
+    const [x, y] = edges[i];
+    if (
+      (canPositionBeCaptured(x - 1, y) && canPositionBeCaptured(x + 1, y)) ||
+      (canPositionBeCaptured(x, y - 1) && canPositionBeCaptured(x, y + 1))
+    ) {
+      return false;
+    }
+  }
+
+  // We haven't run into any impossibility of a fort existing, so it must exist
+  return true;
+}
+
+function hasKingEscapedFromCorner(board) {
+  const [x, y] = getKingPosition(board);
+  return isExitSquare(x, y);
+}
+
+function isPlayerUnableToMove(board, turn) {
+  for (let i = 0; i < board.pieces.length; ++i) {
+    const piece = board.pieces[i];
+    if (piece.deleted || !isPieceForTurn(piece.type, turn)) {
+      continue;
+    }
+    const moves = getLegalMoves(board, piece.x, piece.y);
+    if (moves.length > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getEndState(board, history, turn) {
+  if (isRepetition(history)) {
+    return ATTACKER_WIN;
+  }
+  if (isDefenderSurrounded(board)) {
+    return ATTACKER_WIN;
+  }
+  if (isKingCaptured(board)) {
+    return ATTACKER_WIN;
+  }
+  if (hasKingEscapedFromCorner(board)) {
+    return DEFENDER_WIN;
+  }
+  if (hasKingEscapedFort(board)) {
+    return DEFENDER_WIN;
+  }
+  if (isPlayerUnableToMove(board, turn)) {
+    if (turn === ATTACKER_TURN) {
+      return DEFENDER_WIN;
+    } else {
+      return ATTACKER_WIN;
+    }
+  }
+
+  return GAME_CONTINUES;
+}
+
 function isPieceForTurn(piece, turn) {
   return (
     (turn === DEFENDER_TURN && (piece === DEFENDER || piece === KING)) ||
@@ -306,6 +555,60 @@ function isPieceForTurn(piece, turn) {
 
 function positionToString(x, y) {
   return String.fromCharCode(97 + x) + (y + 1);
+}
+
+// https://github.com/jslater89/OpenTafl/blob/master/opentafl-notation-spec.txt
+function boardToString(board) {
+  let result = "/";
+  for (let y = 0; y < SIZE; ++y) {
+    let emptyCount = 0;
+    for (let x = 0; x < SIZE; ++x) {
+      const piece = getPiece(board, x, y);
+      if (piece === EMPTY) {
+        emptyCount++;
+      } else {
+        if (emptyCount > 0) {
+          result += emptyCount;
+          emptyCount = 0;
+        }
+        if (piece === KING) {
+          result += "K";
+        } else if (piece === DEFENDER) {
+          result += "T";
+        } else {
+          result += "t";
+        }
+      }
+    }
+    if (emptyCount > 0) {
+      result += emptyCount;
+      emptyCount = 0;
+    }
+    result += "/";
+  }
+  return result;
+}
+
+function parseBoard(string) {
+  const board = Array(SIZE * SIZE).fill(EMPTY);
+  board.pieces = [];
+
+  string.split("/").forEach((line, y) => {
+    let x = 0;
+    for (let i = 0; i < line.length; ++i) {
+      const numEmpty = +line[i];
+      if (!isNaN(numEmpty)) {
+        x += numEmpty;
+      } else {
+        const piece =
+          line[i] === "T" ? DEFENDER : line[i] === "K" ? KING : ATTACKER;
+        addPiece(board, x, y - 1, piece);
+        x++;
+      }
+    }
+  });
+
+  return board;
 }
 
 function DisplayBoard({ gameState, onClick }) {
@@ -406,7 +709,9 @@ const ATTACKER_TURN = true;
 const DEFENDER_TURN = false;
 
 const INITIAL_GAME_STATE = {
-  board: initializeBoard(),
+  board: parseBoard(
+    "/3ttttt3/5t5/11/t4T4t/t3TTT3t/tt1TTKTT1tt/t3TTT3t/t4T4t/11/5t5/3ttttt3/"
+  ),
   turn: ATTACKER_TURN,
   selected: null,
   lastMove: null,
@@ -435,6 +740,9 @@ export default function App() {
   return (
     <div className="App">
       <div className="main-column">
+        {endStateToString(
+          getEndState(gameState.board, gameState.history, gameState.turn)
+        )}
         <DisplayBoard
           gameState={gameState}
           onClick={(x, y) => {
@@ -485,9 +793,16 @@ export default function App() {
         />
       </div>
       <div className="details-column">
+        <button
+          onClick={() => {
+            setGameState(INITIAL_GAME_STATE);
+          }}
+        >
+          Reset
+        </button>
         <h3>History</h3>
         <button
-          disabled={historyIndex === 0}
+          disabled={historyIndex === 0 || gameState.history.length === 0}
           onClick={() => {
             const historyMove = gameState.history[0];
             setGameState({
@@ -502,7 +817,7 @@ export default function App() {
           First
         </button>
         <button
-          disabled={historyIndex === 0}
+          disabled={historyIndex === 0 || gameState.history.length === 0}
           onClick={() => {
             const historyMove = gameState.history[historyIndex - 1];
             setGameState({
@@ -581,7 +896,7 @@ export default function App() {
         <ImportHistory
           onClick={(historyString) => {
             const moves = parseMoves(historyString);
-            const initialBoard = initializeBoard();
+            const initialBoard = INITIAL_GAME_STATE.board;
             let board = initialBoard;
             let history = [];
             let turn = ATTACKER_TURN;
@@ -592,12 +907,26 @@ export default function App() {
               history.push({ move, board, turn, captures });
               turn = !turn;
             }
+            const move = history[history.length - 1];
             setGameState({
-              board: initialBoard,
+              board: move.board,
+              selected: null,
+              turn: move.turn,
+              lastMove: move.move,
+              history
+            });
+          }}
+        />
+        <ImportBoard
+          currentBoardString={boardToString(gameState.board)}
+          key={boardToString(gameState.board)}
+          onClick={(boardString) => {
+            setGameState({
+              board: parseBoard(boardString),
               selected: null,
               turn: ATTACKER_TURN,
               lastMove: null,
-              history
+              history: []
             });
           }}
         />
@@ -617,7 +946,21 @@ function ImportHistory({ onClick }) {
         value={historyString}
         onChange={(e) => setHistoryString(e.target.value)}
       />
-      <button onClick={() => onClick(historyString)}>Import</button>
+      <button onClick={() => onClick(historyString)}>Import History</button>
+    </div>
+  );
+}
+
+function ImportBoard({ onClick, currentBoardString }) {
+  const [boardString, setBoardString] = useState(currentBoardString);
+  return (
+    <div>
+      <input
+        type="text"
+        value={boardString}
+        onChange={(e) => setBoardString(e.target.value)}
+      />
+      <button onClick={() => onClick(boardString)}>Import Board</button>
     </div>
   );
 }
