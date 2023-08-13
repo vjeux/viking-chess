@@ -82,11 +82,11 @@ function range(start, end) {
 const IMAGES = [];
 IMAGES[EMPTY] = "https://upload.wikimedia.org/wikipedia/commons/c/ca/1x1.png";
 IMAGES[KING] =
-  "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png";
+  "https://images.chesscomfiles.com/chess-themes/pieces/lolz/150/wk.png";
 IMAGES[ATTACKER] =
-  "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png";
+  "https://images.chesscomfiles.com/chess-themes/pieces/lolz/150/bp.png";
 IMAGES[DEFENDER] =
-  "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png";
+  "https://images.chesscomfiles.com/chess-themes/pieces/lolz/150/wp.png";
 
 const LIGHT = 0;
 const DARK = 1;

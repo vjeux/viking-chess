@@ -7,6 +7,26 @@
 :root {
   --size: 11;
   --width: 50px;
+
+  --color-light: #bee9e8;
+  --color-dark: #62b6cb;
+  --color-darkest: #1b4965;
+
+  --color-light-highlight: color-mix(
+    in hsl shorter hue,
+    var(--color-light),
+    yellow 20%
+  );
+  --color-dark-highlight: color-mix(
+    in hsl shorter hue,
+    var(--color-dark),
+    yellow 20%
+  );
+  --color-darkest-highlight: color-mix(
+    in hsl shorter hue,
+    var(--color-darkest),
+    yellow 20%
+  );
 }
 
 .board {
@@ -41,21 +61,24 @@
 }
 
 .dark {
-  background-color: #b0c490;
+  background-color: var(--color-dark);
 }
 .darkest {
-  background-color: #779954;
+  background-color: var(--color-darkest);
 }
 .row,
 .light {
-  background-color: #e9eecc;
+  background-color: var(--color-light);
 }
 
-.dark.selected {
-  background-color: #bccc4a;
-}
 .light.selected {
-  background-color: #f4f58a;
+  background-color: var(--color-light-highlight);
+}
+.dark.selected {
+  background-color: var(--color-dark-highlight);
+}
+.darkest.selected {
+  background-color: var(--color-darkest-highlight); /* #bccc4a; */
 }
 
 .legal-move:after {
